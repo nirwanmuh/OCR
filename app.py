@@ -4,7 +4,7 @@ import numpy as np
 from paddleocr import PaddleOCR
 
 # Inisialisasi model PaddleOCR (hanya sekali)
-ocr_model = PaddleOCR(use_angle_cls=True, lang='ind')  # Menggunakan Bahasa Indonesia
+ocr_model = PaddleOCR(use_angle_cls=True, lang='id')  # Menggunakan Bahasa Indonesia
 
 # Fungsi untuk memuat dan mengubah file gambar menjadi array NumPy
 def load_image(uploaded_file):
