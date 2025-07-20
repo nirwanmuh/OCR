@@ -6,7 +6,7 @@ import re
 
 st.set_page_config(page_title="OCR KTP/SIM/Paspor", layout="centered")
 
-st.title("📷 OCR KTP / SIM / Paspor 🇮🇩")
+st.title("OCR KTP / SIM / Paspor")
 
 # --- Sidebar ---
 st.sidebar.header("🛠️ Pilih Metode Input")
