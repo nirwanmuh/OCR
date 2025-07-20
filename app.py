@@ -7,15 +7,24 @@ import re
 st.set_page_config(page_title="OCR KTP/SIM/Paspor", layout="centered")
 
 st.title("📷 OCR KTP / SIM / Paspor 🇮🇩")
-st.write("Gunakan kamera atau unggah gambar dokumen identitas.")
 
-# Input gambar
-input_type = st.radio("Pilih metode input:", ["Kamera", "Upload File"])
+# --- Sidebar ---
+st.sidebar.header("🛠️ Pilih Metode Input")
+st.sidebar.write("Gunakan kamera atau unggah gambar dokumen identitas.")
+
+input_method = None
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    if st.button("📸 Kamera"):
+        input_method = "Kamera"
+with col2:
+    if st.button("📁 Upload"):
+        input_method = "Upload"
 
 image = None
-if input_type == "Kamera":
+if input_method == "Kamera":
     image = st.camera_input("Ambil gambar dokumen")
-else:
+elif input_method == "Upload":
     image = st.file_uploader("Upload gambar dokumen", type=["jpg", "jpeg", "png"])
 
 if image is not None:
