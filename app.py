@@ -1,50 +1,62 @@
 import streamlit as st
-import easyocr
-import numpy as np
-from PIL import Image
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+import av
 import cv2
+import pytesseract
+from PIL import Image
+import numpy as np
+import re
 
-# Inisialisasi model EasyOCR (Bahasa Indonesia dan Inggris)
-reader = easyocr.Reader(['id', 'en'])
+st.set_page_config(page_title="OCR KTP/SIM/Paspor", layout="centered")
+st.title("\U0001F4F8 OCR dari Kamera & Upload Gambar")
 
-st.set_page_config(page_title="OCR KTP/SIM/Paspor", layout="wide")
-st.title("📷 OCR Pembaca KTP, SIM, dan Paspor")
+st.sidebar.header("\U0001F4E4 Pilih Input")
+input_type = st.sidebar.radio("Input dari:", ["Kamera", "Upload Gambar"])
 
-# Pilihan input
-input_mode = st.radio("Pilih metode input:", ["Upload Gambar", "Kamera Langsung"])
+image_to_ocr = None  # Global holder for image
 
-image = None
-
-if input_mode == "Upload Gambar":
-    uploaded_file = st.file_uploader("Unggah gambar dokumen", type=["jpg", "jpeg", "png"])
+if input_type == "Upload Gambar":
+    uploaded_file = st.file_uploader("Upload gambar dokumen", type=['jpg', 'jpeg', 'png'])
     if uploaded_file:
         image = Image.open(uploaded_file).convert("RGB")
+        st.image(image, caption="Dokumen yang diunggah", use_column_width=True)
+        image_to_ocr = np.array(image)
 
-elif input_mode == "Kamera Langsung":
-    picture = st.camera_input("Ambil gambar dokumen")
-    if picture:
-        image = Image.open(picture).convert("RGB")
+else:
+    class VideoTransformer(VideoTransformerBase):
+        def transform(self, frame: av.VideoFrame) -> np.ndarray:
+            img = frame.to_ndarray(format="bgr24")
+            self.last_frame = img
+            return cv2.putText(img.copy(), "Tekan tombol OCR setelah ini!", (10, 30),
+                               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-# Proses OCR jika gambar tersedia
-if image:
-    st.image(image, caption="Gambar Diterima", use_column_width=True)
-    st.info("🔍 Memproses gambar dengan OCR...")
+    ctx = webrtc_streamer(
+        key="ocr-camera",
+        video_transformer_factory=VideoTransformer,
+        media_stream_constraints={"video": True, "audio": False},
+        async_transform=True,
+    )
 
-    # Ubah gambar ke numpy array
-    image_np = np.array(image)
+    if ctx.video_transformer:
+        if st.button("\U0001F4F8 Ambil Gambar dari Kamera"):
+            frame = ctx.video_transformer.last_frame
+            if frame is not None:
+                st.image(frame, caption="Gambar dari kamera", use_column_width=True)
+                image_to_ocr = frame
 
-    # Gunakan EasyOCR
-    results = reader.readtext(image_np)
+# Jalankan OCR jika gambar tersedia
+if image_to_ocr is not None:
+    st.subheader("\U0001F4CB Hasil OCR")
+    with st.spinner("\U0001F50D Sedang membaca teks..."):
+        text = pytesseract.image_to_string(image_to_ocr, lang='ind')  # Bisa juga 'eng'
+    st.text_area("\U0001F4DD Teks Terbaca:", text, height=300)
 
-    st.subheader("📄 Hasil Teks Terdeteksi")
-    if not results:
-        st.warning("❌ Tidak ada teks terdeteksi.")
-    else:
-        for (bbox, text, conf) in results:
-            st.markdown(f"- **{text}** _(kepercayaan: {conf:.2f})_")
+    # Ekstraksi otomatis (opsional)
+    st.subheader("\U0001F4CC Ekstraksi Otomatis")
+    nik = re.search(r'\d{16}', text)
+    nama = re.search(r'Nama\s*[:\-]?\s*(.*)', text, re.IGNORECASE)
+    ttl = re.search(r'Tempat.*Tgl.*Lahir\s*[:\-]?\s*(.*)', text, re.IGNORECASE)
 
-        # (Optional) Simpan hasil ke TXT
-        with st.expander("📥 Unduh hasil OCR"):
-            ocr_text = "\n".join([text for (_, text, _) in results])
-            st.download_button("Unduh sebagai .txt", ocr_text, file_name="hasil_ocr.txt")
-
+    st.write("**NIK:**", nik.group() if nik else "Tidak ditemukan")
+    st.write("**Nama:**", nama.group(1).strip() if nama else "Tidak ditemukan")
+    st.write("**Tempat/Tgl Lahir:**", ttl.group(1).strip() if ttl else "Tidak ditemukan")
