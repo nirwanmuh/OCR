@@ -1,5 +1,5 @@
 streamlit
-easyocr
-numpy
-Pillow
+streamlit-webrtc
 opencv-python-headless
+pytesseract
+Pillow
