@@ -1,77 +1,50 @@
 import streamlit as st
-from PIL import Image
+import easyocr
 import numpy as np
-from paddleocr import PaddleOCR
+from PIL import Image
+import cv2
 
-# Inisialisasi model PaddleOCR (hanya sekali)
-ocr_model = PaddleOCR(use_angle_cls=True, lang='en')  # Menggunakan Bahasa Indonesia
+# Inisialisasi model EasyOCR (Bahasa Indonesia dan Inggris)
+reader = easyocr.Reader(['id', 'en'])
 
-# Fungsi untuk memuat dan mengubah file gambar menjadi array NumPy
-def load_image(uploaded_file):
-    image = Image.open(uploaded_file).convert("RGB")
-    return np.array(image)
+st.set_page_config(page_title="OCR KTP/SIM/Paspor", layout="wide")
+st.title("📷 OCR Pembaca KTP, SIM, dan Paspor")
 
-# Fungsi untuk ekstraksi teks dan data penting
-def extract_text_fields(image_np):
-    result = ocr_model.ocr(image_np, cls=True)
-    lines = [line[1][0] for line in result[0]]  # Ambil teks dari hasil OCR
+# Pilihan input
+input_mode = st.radio("Pilih metode input:", ["Upload Gambar", "Kamera Langsung"])
 
-    full_text = "\n".join(lines)
+image = None
 
-    # Ekstrak informasi penting berdasarkan kata kunci
-    fields = {
-        "NIK": "-",
-        "Nama": "-",
-        "Tempat/Tanggal Lahir": "-",
-        "Alamat": "-"
-    }
+if input_mode == "Upload Gambar":
+    uploaded_file = st.file_uploader("Unggah gambar dokumen", type=["jpg", "jpeg", "png"])
+    if uploaded_file:
+        image = Image.open(uploaded_file).convert("RGB")
 
-    for line in lines:
-        line_lower = line.lower()
-        if "nik" in line_lower and fields["NIK"] == "-":
-            fields["NIK"] = line
-        elif "nama" in line_lower and fields["Nama"] == "-":
-            fields["Nama"] = line
-        elif "lahir" in line_lower and fields["Tempat/Tanggal Lahir"] == "-":
-            fields["Tempat/Tanggal Lahir"] = line
-        elif "alamat" in line_lower and fields["Alamat"] == "-":
-            fields["Alamat"] = line
+elif input_mode == "Kamera Langsung":
+    picture = st.camera_input("Ambil gambar dokumen")
+    if picture:
+        image = Image.open(picture).convert("RGB")
 
-    return full_text, fields
+# Proses OCR jika gambar tersedia
+if image:
+    st.image(image, caption="Gambar Diterima", use_column_width=True)
+    st.info("🔍 Memproses gambar dengan OCR...")
 
-# Klasifikasi jenis dokumen berdasarkan isi teks
-def classify_doc(text):
-    text_lower = text.lower()
-    if "nik" in text_lower:
-        return "KTP"
-    elif "sim" in text_lower:
-        return "SIM"
-    elif "paspor" in text_lower or "passport" in text_lower:
-        return "PASPOR"
+    # Ubah gambar ke numpy array
+    image_np = np.array(image)
+
+    # Gunakan EasyOCR
+    results = reader.readtext(image_np)
+
+    st.subheader("📄 Hasil Teks Terdeteksi")
+    if not results:
+        st.warning("❌ Tidak ada teks terdeteksi.")
     else:
-        return "Tidak Diketahui"
+        for (bbox, text, conf) in results:
+            st.markdown(f"- **{text}** _(kepercayaan: {conf:.2f})_")
 
-# Konfigurasi halaman Streamlit
-st.set_page_config(page_title="OCR Dokumen KTP, SIM, PASPOR", layout="wide")
+        # (Optional) Simpan hasil ke TXT
+        with st.expander("📥 Unduh hasil OCR"):
+            ocr_text = "\n".join([text for (_, text, _) in results])
+            st.download_button("Unduh sebagai .txt", ocr_text, file_name="hasil_ocr.txt")
 
-st.title("📄 Pembaca KTP, SIM, dan PASPOR Otomatis")
-st.markdown("Upload gambar dokumen, dan sistem akan mengekstrak data penting menggunakan AI (OCR).")
-
-uploaded_file = st.file_uploader("📤 Upload gambar (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
-
-if uploaded_file is not None:
-    st.image(uploaded_file, caption="Dokumen yang Diunggah", use_column_width=True)
-
-    with st.spinner("🔍 Menganalisis dokumen..."):
-        image_np = load_image(uploaded_file)
-        full_text, fields = extract_text_fields(image_np)
-        doc_type = classify_doc(full_text)
-
-    st.success(f"📌 Jenis Dokumen: {doc_type}")
-
-    st.subheader("📋 Data yang Terdeteksi:")
-    for field, value in fields.items():
-        st.text(f"{field}: {value}")
-
-    st.subheader("📝 Teks Lengkap (OCR):")
-    st.code(full_text)
