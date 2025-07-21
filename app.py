@@ -11,7 +11,7 @@ st.sidebar.title("Input Dokumen")
 st.title("OCR KTP/SIM/PASPOR")
 option = st.sidebar.radio("Pilih metode input:", ("Kamera", "Upload File"))
 
-reader = easyocr.Reader('id')
+reader = easyocr.Reader(['id'])
 
 def load_image(image_file):
     img = Image.open(image_file)
