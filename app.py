@@ -1,41 +1,45 @@
 import streamlit as st
 import easyocr
 import numpy as np
-import cv2
 from PIL import Image
-import tempfile
-import os
+from spellchecker import SpellChecker  # Untuk koreksi kata
+import io
 
-st.set_page_config(page_title="OCR KTP/SIM/PASPOR", layout='centered')
-st.sidebar.title("Input Dokumen")
-st.title("OCR KTP/SIM/PASPOR")
-option = st.sidebar.radio("Pilih metode input:", ("Kamera", "Upload File"))
+# Inisialisasi OCR dan SpellChecker
+reader = easyocr.Reader(['id', 'en'])  # Bahasa Indonesia + Inggris
+spell = SpellChecker(language=None)  # Kita masukkan kosa kata manual
+spell.word_frequency.load_text_file('indonesian_words.txt')  # File berisi kata2 baku Indo
 
-reader = easyocr.Reader(['id'])
+# Fungsi koreksi kata
+def auto_correct_text(text):
+    corrected = []
+    for word in text.split():
+        if word.lower() in spell:
+            corrected.append(word)
+        else:
+            corrected.append(spell.correction(word) or word)
+    return " ".join(corrected)
 
-def load_image(image_file):
-    img = Image.open(image_file)
-    return img
+# UI di Streamlit
+st.sidebar.title("OCR Dokumen Identitas")
+input_mode = st.sidebar.radio("Pilih metode input:", ["Kamera", "Upload File"])
 
-def read_text(img_array):
-    result = reader.readtext(img_array)
-    text = "\n".join([res[1] for res in result])
-    return text
+if input_mode == "Kamera":
+    uploaded_file = st.camera_input("Ambil foto dokumen:")
+else:
+    uploaded_file = st.file_uploader("Upload gambar dokumen (JPEG/PNG)", type=["jpg", "jpeg", "png"])
 
-if option == "Kamera":
-    picture = st.camera_input("Ambil foto dokumen")
-    if picture:
-        img = load_image(picture)
-        img_array = np.array(img)
-        st.image(img, caption="Gambar yang diproses", use_column_width=True)
-        st.subheader("Hasil OCR:")
-        st.text(read_text(img_array))
+if uploaded_file:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Gambar diambil", use_column_width=True)
 
-elif option == "Upload File":
-    uploaded_file = st.file_uploader("Unggah gambar dokumen", type=["png", "jpg", "jpeg"])
-    if uploaded_file is not None:
-        img = load_image(uploaded_file)
-        img_array = np.array(img)
-        st.image(img, caption="Gambar yang diproses", use_column_width=True)
-        st.subheader("Hasil OCR:")
-        st.text(read_text(img_array))
+    with st.spinner("Sedang mengenali teks..."):
+        result = reader.readtext(np.array(image), detail=0, paragraph=True)
+        original_text = "\n".join(result)
+        corrected_text = auto_correct_text(original_text)
+
+        st.subheader("📄 Teks Asli (OCR):")
+        st.text_area("Teks dari gambar:", value=original_text, height=200)
+
+        st.subheader("🛠️ Setelah Koreksi Otomatis:")
+        st.text_area("Teks setelah koreksi:", value=corrected_text, height=200)
