@@ -8,7 +8,7 @@ import os
 from spellchecker import SpellChecker
 
 # Inisialisasi OCR dan spellchecker
-reader = easyocr.Reader(['id'], paragraph=True)
+reader = easyocr.Reader(['id'])
 spell = SpellChecker(language=None)
 
 # Load file kamus kata bahasa Indonesia
