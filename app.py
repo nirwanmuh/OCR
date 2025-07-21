@@ -1,45 +1,70 @@
 import streamlit as st
 import easyocr
 import numpy as np
+import cv2
 from PIL import Image
-from spellchecker import SpellChecker  # Untuk koreksi kata
-import io
+import tempfile
+import os
+from spellchecker import SpellChecker
 
-# Inisialisasi OCR dan SpellChecker
-reader = easyocr.Reader(['id', 'en'])  # Bahasa Indonesia + Inggris
-spell = SpellChecker(language=None)  # Kita masukkan kosa kata manual
-spell.word_frequency.load_text_file('indonesian_words.txt')  # File berisi kata2 baku Indo
+# Inisialisasi OCR dan spellchecker
+reader = easyocr.Reader(['id'], recog_network='paragraph')
+spell = SpellChecker(language=None)
 
-# Fungsi koreksi kata
-def auto_correct_text(text):
-    corrected = []
-    for word in text.split():
-        if word.lower() in spell:
-            corrected.append(word)
-        else:
-            corrected.append(spell.correction(word) or word)
-    return " ".join(corrected)
+# Load file kamus kata bahasa Indonesia
+try:
+    spell.word_frequency.load_text_file("indonesian_words.txt")
+    use_spellcheck = True
+except:
+    st.warning("File 'indonesian_words.txt' tidak ditemukan. Spellcheck dinonaktifkan.")
+    use_spellcheck = False
 
-# UI di Streamlit
+# Fungsi koreksi ejaan
+def clean_text(text):
+    words = text.split()
+    corrected = [spell.correction(w) or w for w in words]
+    return ' '.join(corrected)
+
+# Fungsi konversi image
+def load_image(image_file):
+    image = Image.open(image_file)
+    return np.array(image)
+
+st.set_page_config(page_title="OCR KTP", layout="wide")
+
+# === SIDEBAR ===
 st.sidebar.title("OCR Dokumen Identitas")
-input_mode = st.sidebar.radio("Pilih metode input:", ["Kamera", "Upload File"])
+st.sidebar.write("Gunakan kamera atau unggah gambar dokumen identitas.")
 
-if input_mode == "Kamera":
-    uploaded_file = st.camera_input("Ambil foto dokumen:")
-else:
-    uploaded_file = st.file_uploader("Upload gambar dokumen (JPEG/PNG)", type=["jpg", "jpeg", "png"])
+input_method = st.sidebar.radio("Pilih metode input:", ("Kamera", "Upload File"))
 
-if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Gambar diambil", use_column_width=True)
+# === INPUT GAMBAR ===
+image = None
 
-    with st.spinner("Sedang mengenali teks..."):
-        result = reader.readtext(np.array(image), detail=0, paragraph=True)
-        original_text = "\n".join(result)
-        corrected_text = auto_correct_text(original_text)
+if input_method == "Kamera":
+    img_file = st.camera_input("Ambil gambar melalui kamera")
+    if img_file is not None:
+        image = load_image(img_file)
+elif input_method == "Upload File":
+    img_file = st.file_uploader("Unggah gambar dokumen (JPG/PNG)", type=['png', 'jpg', 'jpeg'])
+    if img_file is not None:
+        image = load_image(img_file)
 
-        st.subheader("📄 Teks Asli (OCR):")
-        st.text_area("Teks dari gambar:", value=original_text, height=200)
+# === OCR & OUTPUT ===
+if image is not None:
+    st.image(image, caption="Gambar yang Diproses", use_column_width=True)
 
-        st.subheader("🛠️ Setelah Koreksi Otomatis:")
-        st.text_area("Teks setelah koreksi:", value=corrected_text, height=200)
+    with st.spinner("🔍 Sedang memproses OCR..."):
+        results = reader.readtext(image, detail=0, paragraph=True)
+        text_raw = "\n".join(results)
+
+        st.subheader("📄 Hasil OCR (tanpa koreksi)")
+        st.text_area("Teks Mentah:", text_raw, height=200)
+
+        if use_spellcheck:
+            cleaned = clean_text(text_raw)
+            st.subheader("✅ Teks Setelah Koreksi")
+            st.text_area("Teks Final:", cleaned, height=200)
+        else:
+            st.info("Spellcheck tidak tersedia karena kamus tidak ditemukan.")
+
