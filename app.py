@@ -7,6 +7,7 @@ import tempfile
 import os
 
 st.set_page_config(layout='centered')
+st.set_page_config(page_title="OCR KTP/SIM/PASPOR")
 st.sidebar.title("Input Dokumen")
 option = st.sidebar.radio("Pilih metode input:", ("Kamera", "Upload File"))
 
