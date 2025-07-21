@@ -6,9 +6,9 @@ from PIL import Image
 import tempfile
 import os
 
-st.set_page_config(layout='centered')
-st.set_page_config(page_title="OCR KTP/SIM/PASPOR")
+st.set_page_config(page_title="OCR KTP/SIM/PASPOR", layout='centered')
 st.sidebar.title("Input Dokumen")
+st.title("OCR KTP/SIM/PASPOR")
 option = st.sidebar.radio("Pilih metode input:", ("Kamera", "Upload File"))
 
 reader = easyocr.Reader(['en', 'id'])
